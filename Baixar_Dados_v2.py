@@ -82,58 +82,138 @@ def processa_uf(UF, tabela,api):
 
     return pd.concat(dados, ignore_index=True)
 
-# Tabela 6852 - Agrotóxico
+# Tabela 6852 - Agrotóxico - Fez uso de agrotóxico
+# https://apisidra.ibge.gov.br/values/t/6852/n6/1100015/v/all/p/all/c829/46302/c12521/111611,111612/c12567/41151/c837/46544/c12603/45927/c220/110085
 agrotoxico = processa_uf(UF, '6852',
-                         '/v/all/p/all/c829/46302/c12521/111611/c12567/41151/c837/46544/c12603/45927/c220/110085/d/2/f/c' )
+                    '/v/all/p/all/c829/46302/c12521/111611,111612/c12567/41151/c837/46544/c12603/45927/c220/110085/d/2/f/c' )
+
+# FALTA AGREGAR AQUI: DIVIDIR USOU/(USOU + NÃO USOU)
 agrotoxico.to_csv('./Dados_Final/agrotoxico.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
 # Tabela de crédito 6895
+## https://apisidra.ibge.gov.br/values/t/6895/n6/1100015/v/1001990/p/all/c829/46302/c12542/115947/c218/46502/c12517/113601/c12544/111929/c220/110085/d/v1001990%202
+
 credito = processa_uf(UF, '6895',
-                      '/v/allxp/p/all/c829/46302/c12542/115947/c218/46502/c12517/113601/c12544/allxt/c220/110085/d/2/f/c')
+                      '/v/1001990/p/all/c829/46302/c12542/115947/c218/46502/c12517/113601/c12544/111929/c220/110085/d/2/f/c')
 credito.to_csv('./Dados_Final/credito.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
 # Tabela 6897 - VBP 2017
 VBP17 = processa_uf(UF,'6897', "/v/1999/p/all/c829/46302/c12547/114017/c218/46502/c12517/113601/d/2/f/c")
 VBP17.to_csv('./Dados_Final/VBP17.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
-# Tabela 1118 - VBP 2006
-VBP06 = processa_uf(UF,'1118','/v/1999/p/all/c12547/114017/c12896/0/d/2/f/c')
-VBP06.to_csv('./Dados_Final/VBP06.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
 # Tabela 6962 - Correção do solo
-correcao_solo = processa_uf(UF,'6962', '/v/183/p/all/c836/46531/c12549/46554/c798/47179/c220/110085/d/2/f/c')
+## https://apisidra.ibge.gov.br/values/t/6962/n6/1100015/v/183/p/all/c836/46531/c12549/allxt/c798/47179/c220/110085
+correcao_solo = processa_uf(UF,'6962', '/v/183/p/all/c836/46531/c12549/allxt/c798/47179/c220/110085/d/2/f/c')
+# FALTA AGREGAR AQUI: DIVIDIR USOU/(USOU + NÃO USOU)
 correcao_solo.to_csv('./Dados_Final/correcao_solo.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
 # Tabela 6874 - Total de bens e equipamentos
-bens_equip = processa_uf(UF,'6874','/v/9572/p/all/c829/46302/c796/46567/c12603/45927/c220/110085/d/2/f/c')
+## https://apisidra.ibge.gov.br/values/t/6874/n6/1100015,1100023/v/9572/p/all/c829/46302/c796/allxt/c12603/45927/c220/110085
+bens_equip = processa_uf(UF,'6874','/v/9572/p/all/c829/46302/c796/allxt/c12603/45927/c220/110085/d/2/f/c')
+
+bens_equip = (bens_equip[['Município (Código)',
+            'Tratores, implementos e máquinas existentes no estabelecimento agropecuário (Código)' ,'Valor']]\
+              .rename(columns={'Município (Código)':'geocode','Tratores, implementos e máquinas existentes no estabelecimento agropecuário (Código)':'cod'})\
+             .assign(
+               Valor = lambda d: d['Valor'].str.replace(r"^(\.\.\.|X|-)$", '0', regex=True).astype(float),
+               cod=lambda x: np.select(
+                 [
+                  (x['cod'] == '40597'),
+                  (x['cod'] == '40598'),
+                  (x['cod'] == '40599') ,
+                  (x['cod'] == '40600')
+              ],
+                 ['Tratores', 'Semeadeiras_plantadeiras', 'Colheitadeiras', 'Adubadeiras_e_ou_distribuidoras_de_calcário'],
+              default='neutral'
+              )
+               ).pivot(index='geocode', columns='cod', values='Valor')\
+                 .reset_index()\
+                 .assign(
+                   BENS = lambda d: d['Adubadeiras_e_ou_distribuidoras_de_calcário'] + d['Colheitadeiras'] + d['Semeadeiras_plantadeiras'],
+                   TRAT = lambda d: d['Tratores'],
+                   BENS_TRAT = lambda d: d['TRAT'] + d['BENS']
+                 )
+                 [['geocode', 'BENS', 'TRAT', 'BENS_TRAT' ]])
+
 bens_equip.to_csv('./Dados_Final/bens_equip.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
+
+
 # Tabela 6888 - Trabalho
-trabalho = processa_uf(UF,'6888','/v/185/p/all/c829/46302/c12578/112967/c12573/45929/c218/46502/c12517/113601/d/2/f/c')
-trabalho.to_csv('./Dados_Final/trabalho.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
+#trabalho = processa_uf(UF,'6888','/v/185/p/all/c829/46302/c12578/112967/c12573/45929/c218/46502/c12517/113601/d/2/f/c')
+#trabalho.to_csv('./Dados_Final/trabalho.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
 # Tabela 6879 - Área ocupada pela agropecuária
+# https://apisidra.ibge.gov.br/values/t/6879/n6/4125407/v/184/p/all/c829/46302/c12517/113601/c12567/41151/c12894/46569/d/v184%200
 areaHec_agropec = processa_uf(UF, '6879','/v/184/p/all/c829/46302/c12517/113601/c12567/41151/c12894/46569/d/2/f/c')
 areaHec_agropec.to_csv('./Dados_Final/areaHec_agropec.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
-# Tabela 6879 - Assistência técnica (aproveitou-se a tabela 6879 para baixar a área da agropecuária)
-assist_tec = processa_uf(UF, '6879','/v/183/p/all/c829/46302/c12517/113601/c12567/113111/c12894/46569/d/2/f/c')
+# Tabela 6879 - Assistência técnica
+# https://apisidra.ibge.gov.br/values/t/6879/n6/1100015,1100023/v/183/p/all/c829/46302/c12517/113601/c12567/41151,113111/c12894/46569
+assist_tec = processa_uf(UF, '6879','/v/183/p/all/c829/46302/c12517/113601/c12567/41151,113111/c12894/46569/d/2/f/c')
+
+assist_tec = (assist_tec[['Município (Código)', 'Origem da orientação técnica recebida (Código)', 'Valor']]\
+                .rename(columns={'Município (Código)':'geocode','Origem da orientação técnica recebida (Código)':'cod'})\
+             .assign(
+               Valor = lambda d: d['Valor'].str.replace(r"^(\.\.\.|X|-)$", '0', regex=True).astype(float),
+               cod=lambda x: np.select(
+                 [
+                  (x['cod'] == '113111'),
+                  (x['cod'] == '41151')
+              ],
+                 ['Recebeu', 'Total'],
+              default='neutral'
+              )
+               ).pivot(index='geocode', columns='cod', values='Valor')\
+                 .reset_index()\
+                 .assign(
+                   ASSIS_TEC = lambda d: (d['Recebeu'] / d['Total'])*100
+                 )
+                 [['geocode','ASSIS_TEC']]
+                 )
+
 assist_tec.to_csv('./Dados_Final/assist_tec.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
-# Tabela 6857 - Área irrigada
+# Tabela 6857 - Área irrigada (Hectares)
+# https://apisidra.ibge.gov.br/values/t/6857/n6/1100015,1100023/v/2373/p/all/c829/46302/c12604/118477/c12564/41145/c12771/45951/c309/10969/d/v2373%200
 area_irrigada_hect = processa_uf(UF, '6857',
                                  '/v/2373/p/all/c829/46302/c12604/118477/c12564/41145/c12771/45951/c309/10969/d/2/f/c')
 area_irrigada_hect.to_csv('./Dados_Final/area_irrigada_hect.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
-# Tabela 6899 - Despesas
-despesas = processa_uf(UF, '6899','/v/1996/p/all/c829/46302/c210/113946/c218/46502/c12517/113601/d/2/f/c')
+# Tabela 6899 - Despesas - Total e Despesas com novas culturas permanentes e silvicultura
+# https://apisidra.ibge.gov.br/values/t/6899/n6/1100015,1100023/v/1996/p/all/c829/46302/c210/45957,45958,113946/c218/46502/c12517/113601/d/v1996%200
+despesas0 = processa_uf(UF, '6899','/v/1996/p/all/c829/46302/c210/45957,45958,113946/c218/46502/c12517/113601/d/2/f/c')
+
+despesas = (despesas0[['Município (Código)', 'Tipo de despesa (Código)', 'Valor']]\
+                .rename(columns={'Município (Código)':'geocode','Tipo de despesa (Código)':'cod'})\
+             .assign(
+               Valor = lambda d: d['Valor'].str.replace(r"^(\.\.\.|X|-)$", '0', regex=True).astype(float),
+               cod=lambda x: np.select(
+                 [
+                  (x['cod'] == '113946'),
+                  (x['cod'] == '45957'),
+                  (x['cod'] == '45958')
+              ],
+                 ['Total', 'Novas_culturas_permanentes_e_silvicultura','Formação_de_pastagens'],
+              default='neutral'
+              )
+               ).pivot(index='geocode', columns='cod', values='Valor')\
+                 .reset_index()\
+                 .assign(
+                   DESP = lambda d: d['Novas_culturas_permanentes_e_silvicultura'] + d['Formação_de_pastagens'],
+                   DESP_PERC = lambda d: (d['DESP'] / d['Total'])*100
+                 )
+                 #[['geocode','DESP_PERC','DESP']]
+                 )
+
 despesas.to_csv('./Dados_Final/despesas_totais.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
 
 # Tabela 6899 - Despesas com novas culturas permanentes e silvicultura; formação de pastagens
-despesas_novas_pastagens = processa_uf(UF, '6899',
-                                       '/v/1996/p/all/c829/46302/c210/45957,45958/c218/46502/c12517/113601/d/2/f/c')
-despesas_novas_pastagens.to_csv('./Dados_Final/despesas_novas_pastagens.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
+#despesas_novas_pastagens = processa_uf(UF, '6899',
+#                                       '/v/1996/p/all/c829/46302/c210/45957,45958/c218/46502/c12517/113601/d/2/f/c')
+#despesas_novas_pastagens.to_csv('./Dados_Final/despesas_novas_pastagens.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
 
 # Tabela 1301 - Área municipal (2010)
 area_municipal = processa_uf(UF, '1301', '/v/615/p/all/d/2/f/c')
@@ -143,13 +223,13 @@ area_municipal.to_csv('./Dados_Final/area_municipal.csv',sep=',',decimal='.',enc
 Cerrado = pd.read_excel('./Dados_V2/tabela_geral_mapbiomas_col8_biomas_municipios.xlsx',sheet_name='COBERTURA_COL8.0')
 # 1986, 1987, 1988, 1989, 1990, 1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022
 
-cerrado  =  Cerrado[['geocode', 'biome','level_1', 1985, 2017]].query("biome == 'Cerrado'") \
+cerrado  =  Cerrado[['geocode', 'biome','level_1', 2006, 2017]].query("biome == 'Cerrado'") \
   .assign( Level_1 = Cerrado['level_1'].apply(categorizacao_uso_terra) )
 
 
-cerrado = cerrado[['geocode', 'Level_1', 1985, 2017]].groupby(['geocode','Level_1'],as_index=False)\
+cerrado = cerrado[['geocode', 'Level_1', 2006, 2017]].groupby(['geocode','Level_1'],as_index=False)\
   .agg(
-    a1985 = (1985, 'sum'),
+    a2006 = (2006, 'sum'),
     a2017 = (2017, 'sum'),
   )\
     .melt(id_vars=['geocode', 'Level_1'],value_name='Area',var_name='Ano')\
@@ -171,115 +251,22 @@ cerrado = cerrado[['geocode', 'Level_1', 1985, 2017]].groupby(['geocode','Level_
 
 
 # 3101607, 3520442, 3131406, 3544509, 3546108
-cerrado.query('geocode==3131406')
+cerrado.query('CD_GEOCMU==3131406')
 cerrado.head(15)
 cerrado.shape
 
-# Dados do censo
-
-vbp17 = (pd.read_csv('./Dados_Final/VBP17.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'VBP17'})\
-    .assign(
-      VBP17 = lambda d: d['VBP17'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-      )[['geocode', 'VBP17']])
-
-#vbp17.query('geocode==1100015')['VBP17']
-
-vbp06 = (pd.read_csv('./Dados_Final/VBP06.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'VBP06'})\
-    .assign(
-      VBP06 = lambda d: d['VBP06'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'VBP06']])
-
-agrotoxico = (pd.read_csv('./Dados_Final/agrotoxico.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'AGROTOXICO'})\
-    .assign(
-      AGROTOXICO = lambda d: d['AGROTOXICO'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'AGROTOXICO']])
-
-irrigacao = (pd.read_csv('./Dados_Final/area_irrigada_hect.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'IRRIGACAO'})\
-    .assign(
-      IRRIGACAO = lambda d: d['IRRIGACAO'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'IRRIGACAO']])
-
-area_agropec = (pd.read_csv('./Dados_Final/areaHec_agropec.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'AREA_AGROPEC'})\
-    .assign(
-      AREA_AGROPEC = lambda d: d['AREA_AGROPEC'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'AREA_AGROPEC']])
-
-assist_tec = (pd.read_csv('./Dados_Final/assist_tec.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'ASSIST_TEC'})\
-    .assign(
-      ASSIST_TEC = lambda d: d['ASSIST_TEC'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'ASSIST_TEC']])
-
-bens_equip = (pd.read_csv('./Dados_Final/bens_equip.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'BENS_EQUIP'})\
-    .assign(
-      BENS_EQUIP = lambda d: d['BENS_EQUIP'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'BENS_EQUIP']])
-
-correcao_solo = (pd.read_csv('./Dados_Final/correcao_solo.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'CORRECAO_SOLO'})\
-    .assign(
-       CORRECAO_SOLO = lambda d: d['CORRECAO_SOLO'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'CORRECAO_SOLO']])
-
-credito = (pd.read_csv('./Dados_Final/credito.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'CREDITO'})\
-    .assign(
-      CREDITO = lambda d: d['CREDITO'].str.replace("-|X|\\...", '0', regex=True).astype(float),
-      # CREDITO = lambda d: d['CREDITO'].replace("-", np.nan, regex=True).replace("", np.nan).astype(float)
-    )\
-      .groupby('geocode',as_index=False).agg(
-        CREDITO = ('CREDITO', 'sum'))
-      [['geocode', 'CREDITO']])
-
-trabalho = (pd.read_csv('./Dados_Final/trabalho.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'TRABALHO'})\
-    .assign(
-      TRABALHO = lambda d: d['TRABALHO'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'TRABALHO']])
-
-area_municipal = (pd.read_csv('./Dados_Final/area_municipal.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'AREA_MUNI'})#\
-    # .assign(
-    #   AREA_MUNI = lambda d: d['AREA_MUNI'].str.replace("-|X", '0', regex=True).astype(float)
-    # )
-    [['geocode', 'AREA_MUNI']])
-
-despesas_tot = (pd.read_csv('./Dados_Final/despesas_totais.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'DESP_TOT'})\
-    .assign(
-      DESP_TOT = lambda d: d['DESP_TOT'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )[['geocode', 'DESP_TOT']])
-
-despesas_novas_pastagens = (pd.read_csv('./Dados_Final/despesas_novas_pastagens.csv',sep=',',decimal='.')\
-  .rename(columns={'Município (Código)':'geocode','Valor':'DESP_PAST'})\
-    .assign(
-      DESP_PAST = lambda d: d['DESP_PAST'].str.replace("-|X|\\...", '0', regex=True).astype(float)
-    )\
-    .groupby('geocode',as_index=False).agg(
-        DESP_PAST = ('DESP_PAST', 'sum'))
-          [['geocode', 'DESP_PAST']])
 
 
-lista_df = [vbp17, vbp06, agrotoxico, irrigacao, area_agropec, assist_tec, bens_equip, correcao_solo, credito, trabalho, area_municipal, despesas_tot, despesas_novas_pastagens]
 
-dados_final = reduce(left_join, lista_df)\
-  .rename(columns={'geocode':'CD_GEOCMU'})\
-    .assign(
-      # CD_GEOCMU = lambda d: d['CD_GEOCMU'].astype(chr)
-      CD_GEOCMU = lambda d: d['CD_GEOCMU'].astype(str)
-    )
+#area_municipal = (pd.read_csv('./Dados_Final/area_municipal.csv',sep=',',decimal='.')\
+#  .rename(columns={'Município (Código)':'geocode','Valor':'AREA_MUNI'})#\
+#    # .assign(
+#    #   AREA_MUNI = lambda d: d['AREA_MUNI'].str.replace("-|X", '0', regex=True).astype(float)
+#    # )
+#    [['geocode', 'AREA_MUNI']])
 
-len(dados_final)
-dados_final.shape
 
-# Verifica o total de linhas que cada um dos df possui antes de realizar o join.
-[len(df) for df in lista_df]
+
 
 
 #cerrado.to_csv('./Dados_Final/teste.csv',sep=',',decimal='.',encoding='UTF-8',index=False)
